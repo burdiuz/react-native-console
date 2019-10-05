@@ -1,4 +1,4 @@
-import React, { PureComponent } from 'react';
+import React, { memo, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { Text, StyleSheet } from 'react-native';
 import { utils } from '@actualwave/log-data-renderer';
@@ -39,47 +39,46 @@ const styles = StyleSheet.create({
   },
 });
 
-export class Row extends PureComponent {
-  static propTypes = {
-    styles: StylesPropType.isRequired,
-    value: RowPropType.isRequired,
-    expandDepth: PropTypes.number.isRequired,
-  };
+export const Row = memo(
+  ({ value: { content, level }, expandDepth, contentFormatter, styles: propStyles }) => {
+    const containerStyle = useMemo(
+      () => [styles.row, styles[level], propStyles.row, propStyles[level]],
+      [propStyles],
+    );
 
-  constructor(props) {
-    super(props);
-    this.resetStyle(props);
-  }
+    return (
+      <Text style={containerStyle}>
+        {content.map((item, index) => {
+          if (isNested(item)) {
+            return (
+              <NestedText
+                key={index}
+                value={item}
+                depth={0}
+                expandDepth={expandDepth}
+                contentFormatter={contentFormatter}
+                styles={propStyles}
+              />
+            );
+          }
 
-  componentWillReceiveProps(props) {
-    const { styles: propStyles, value } = this.props;
+          return <SimpleText key={index} value={item} contentFormatter={contentFormatter} />;
+        })}
+      </Text>
+    );
+  },
+  ({ value: a1, styles: a2 }, { value: b1, styles: b2 }) => a1 === b1 && a2 === b2,
+);
 
-    if (propStyles !== props.styles || value !== props.value) {
-      this.resetStyle(props);
-    }
-  }
+Row.propTypes = {
+  styles: StylesPropType.isRequired,
+  value: RowPropType.isRequired,
+  expandDepth: PropTypes.number.isRequired,
+};
 
-  resetStyle({ value: { level }, styles: propStyles }) {
-    this.style = [styles.row, styles[level], propStyles.row, propStyles[level]];
-  }
-
-  renderContent() {
-    const {
-      value: { content },
-      expandDepth,
-      styles: propStyles,
-    } = this.props;
-
-    return content.map((item, index) => {
-      if (isNested(item)) {
-        return <NestedText key={index} value={item} depth={0} expandDepth={expandDepth} styles={propStyles} />;
-      }
-
-      return <SimpleText key={index} value={item} />;
-    });
-  }
-
-  render() {
-    return <Text style={this.style}>{this.renderContent()}</Text>;
-  }
-}
+export const createRowItemRenderer = (styles, expandDepth, contentFormatter = (str) => str) => ({
+  item,
+}) => (
+  <Row value={item} styles={styles} expandDepth={expandDepth} contentFormatter={contentFormatter} />
+);
+export const getRowListItemKey = ({ timestamp }, index) => `${timestamp}${index}`;

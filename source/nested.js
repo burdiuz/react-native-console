@@ -1,5 +1,5 @@
 /* eslint-disable no-use-before-define */
-import React, { Component } from 'react';
+import React, { memo, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { Text, StyleSheet } from 'react-native';
 import { utils } from '@actualwave/log-data-renderer';
@@ -29,196 +29,203 @@ const styles = StyleSheet.create({
 
 const getNestedSize = (value) => (isList(value) ? getListSize(value) : getStorageSize(value));
 
-export class NestedText extends Component {
-  static propTypes = {
-    value: PropTypes.shape({
-      type: PropTypes.string.isRequired,
-    }).isRequired,
-    depth: PropTypes.number.isRequired,
-    expandDepth: PropTypes.number.isRequired,
-    styles: StylesPropType.isRequired,
-    wrapWithNewLines: PropTypes.bool,
-  };
+const CollapsedContent = ({ value }) => {
+  const size = getNestedSize(value);
 
-  static defaultProps = {
-    wrapWithNewLines: false,
-  };
+  let content = getNestedShortContent(value);
 
-  constructor(props) {
-    super(props);
-
-    const { value, depth, expandDepth, wrapWithNewLines } = this.props;
-
-    this.resetStyle(this.props);
-    this.state = {
-      expanded: depth < expandDepth && !!getNestedSize(value),
-      space: SPACE_LEVEL.repeat(depth),
-      contentSpace: SPACE_LEVEL.repeat(depth + 1),
-      ...getStringWrap(value, wrapWithNewLines),
-    };
+  if (content === undefined) {
+    content = size ? ' ... ' : '';
   }
 
-  resetStyle({ styles: propStyles }) {
-    this.nestedStyle = [styles.nested, propStyles.nested];
-    this.clickableStyle = [styles.clickable, propStyles.clickable];
-    this.collapseIcon = [styles.collapseIcon, propStyles.collapseIcon];
-    this.expandIcon = [styles.expandIcon, propStyles.expandIcon];
-  }
+  return <Text>{content}</Text>;
+};
 
-  componentWillReceiveProps(props) {
-    const { styles: propStyles, value } = this.props;
+const renderCollapsedContent = ({ value }) => <CollapsedContent value={value} />;
 
-    if (propStyles !== props.styles) {
-      this.resetStyle(props);
-    }
+const ListContent = ({
+  value: list,
+  depth,
+  expandDepth,
+  contentSpace,
+  contentFormatter,
+  styles: propStyles,
+}) => {
+  const result = [];
+  let index = 1;
+  let text = '\n';
 
-    if (value !== props.value) {
-      this.setState({
-        ...getStringWrap(props.value),
-      });
-    }
-  }
+  iterateList(list, (value) => {
+    text += contentSpace;
 
-  onPress = () => {
-    this.setState({
-      expanded: !this.state.expanded,
-    });
-  };
-
-  renderCollapsedContent() {
-    const { value } = this.props;
-    const size = getNestedSize(value);
-
-    let content = getNestedShortContent(value);
-
-    if (content === undefined) {
-      content = size ? ' ... ' : '';
-    }
-
-    return <Text>{content}</Text>;
-  }
-
-  renderListContent() {
-    const { contentSpace } = this.state;
-    const { value: list, depth, expandDepth, styles: propStyles } = this.props;
-    const result = [];
-    let index = 1;
-    let text = '\n';
-
-    iterateList(list, (value) => {
-      text += contentSpace;
-
-      if (isNested(value)) {
-        result.push(<Text key={index++}>{text}</Text>);
-        text = '';
-        result.push(
-          <NestedText
-            key={index++}
-            value={value}
-            depth={depth + 1}
-            expandDepth={expandDepth}
-            styles={propStyles}
-          />,
-        );
-      } else {
-        text += value;
-      }
-      text += ', \n';
-    });
-
-    if (text) {
-      result.push(<Text key={index}>{text}</Text>);
-    }
-
-    return result;
-  }
-
-  renderStorageContent() {
-    const { contentSpace } = this.state;
-    const { value: object, depth, expandDepth, styles: propStyles } = this.props;
-    const result = [];
-    let index = 1;
-    let text = '\n';
-
-    iterateStorage(object, (value, key) => {
-      text += contentSpace;
-
-      if (isNested(key)) {
-        result.push(<Text key={index++}>{`${text}[`}</Text>);
-        result.push(
-          <NestedText
-            key={index++}
-            value={key}
-            depth={depth + 1}
-            expandDepth={expandDepth}
-            styles={propStyles}
-          />,
-        );
-        text = ']';
-      } else {
-        text += key;
-      }
-
-      text += ': ';
-
-      if (isNested(value)) {
-        result.push(<Text key={index++}>{text}</Text>);
-        result.push(
-          <NestedText
-            key={index++}
-            value={value}
-            depth={depth + 1}
-            expandDepth={expandDepth}
-            styles={propStyles}
-          />,
-        );
-        text = '';
-      } else {
-        text += value;
-      }
-
-      text += ', \n';
-    });
-
-    if (text) {
-      result.push(<Text key={index}>{text}</Text>);
-    }
-
-    return result;
-  }
-
-  renderExpandedContent() {
-    const { value } = this.props;
-
-    if (isList(value)) {
-      return this.renderListContent();
-    }
-
-    return this.renderStorageContent();
-  }
-
-  render() {
-    const { pre, post, expanded, space } = this.state;
-    let content;
-    let iconStyle;
-
-    if (expanded) {
-      content = this.renderExpandedContent();
-      iconStyle = this.collapseIcon;
+    if (isNested(value)) {
+      result.push(<Text key={index++}>{text}</Text>);
+      text = '';
+      result.push(
+        <NestedText
+          key={index++}
+          value={value}
+          depth={depth + 1}
+          expandDepth={expandDepth}
+          contentFormatter={contentFormatter}
+          styles={propStyles}
+        />,
+      );
     } else {
-      content = this.renderCollapsedContent();
-      iconStyle = this.expandIcon;
+      text += contentFormatter(value);
     }
+    text += ', \n';
+  });
+
+  if (text) {
+    result.push(<Text key={index}>{text}</Text>);
+  }
+
+  return result;
+};
+
+const StorageContent = ({
+  value: object,
+  depth,
+  expandDepth,
+  contentSpace,
+  contentFormatter,
+  styles: propStyles,
+}) => {
+  const result = [];
+  let index = 1;
+  let text = '\n';
+
+  iterateStorage(object, (value, key) => {
+    text += contentSpace;
+
+    if (isNested(key)) {
+      result.push(<Text key={index++}>{`${text}[`}</Text>);
+      result.push(
+        <NestedText
+          key={index++}
+          value={key}
+          depth={depth + 1}
+          expandDepth={expandDepth}
+          contentFormatter={contentFormatter}
+          styles={propStyles}
+        />,
+      );
+      text = ']';
+    } else {
+      text += contentFormatter(key);
+    }
+
+    text += ': ';
+
+    if (isNested(value)) {
+      result.push(<Text key={index++}>{text}</Text>);
+      result.push(
+        <NestedText
+          key={index++}
+          value={value}
+          depth={depth + 1}
+          expandDepth={expandDepth}
+          contentFormatter={contentFormatter}
+          styles={propStyles}
+        />,
+      );
+      text = '';
+    } else {
+      text += contentFormatter(value);
+    }
+
+    text += ', \n';
+  });
+
+  if (text) {
+    result.push(<Text key={index}>{text}</Text>);
+  }
+
+  return <>{result}</>;
+};
+
+const renderExpandedContent = (props) => {
+  const { value, depth } = props;
+
+  const contentSpace = SPACE_LEVEL.repeat(depth + 1);
+
+  if (isList(value)) {
+    return <ListContent {...props} contentSpace={contentSpace} />;
+  }
+
+  return <StorageContent {...props} contentSpace={contentSpace} />;
+};
+
+const NestedContainer = ({
+  expanded,
+  space,
+  pre,
+  post,
+  onPress,
+  children,
+  customStyles: { nestedStyle, clickableStyle, collapseIcon, expandIcon },
+}) => (
+  <Text style={nestedStyle}>
+    <Text onPress={onPress} style={clickableStyle} numberOfLines={1}>
+      {expanded ? <Text style={collapseIcon}>-</Text> : <Text style={expandIcon}>+</Text>}
+      {pre}
+    </Text>
+    {children}
+    <Text>{expanded ? `${space}${post}` : post}</Text>
+  </Text>
+);
+
+const NestedTextView = memo(
+  (props) => {
+    const { value, expanded, depth, wrapWithNewLines, onPress, styles: propStyles } = props;
+
+    const customStyles = useMemo(
+      () => ({
+        nestedStyle: [styles.nested, propStyles.nested],
+        clickableStyle: [styles.clickable, propStyles.clickable],
+        collapseIcon: [styles.collapseIcon, propStyles.collapseIcon],
+        expandIcon: [styles.expandIcon, propStyles.expandIcon],
+      }),
+      [],
+    );
+
+    const data = useMemo(
+      () => ({
+        space: SPACE_LEVEL.repeat(depth),
+        ...getStringWrap(value, wrapWithNewLines),
+      }),
+      [],
+    );
 
     return (
-      <Text style={this.nestedStyle}>
-        <Text onPress={this.onPress} style={this.clickableStyle} numberOfLines={1}>
-          <Text style={iconStyle}>{expanded ? '-' : '+'}</Text>
-          {pre}
-        </Text>
-        {content}
-        <Text>{expanded ? `${space}${post}` : post}</Text>
-      </Text>
+      <NestedContainer expanded={expanded} {...data} onPress={onPress} customStyles={customStyles}>
+        {expanded ? renderExpandedContent(props) : renderCollapsedContent(props)}
+      </NestedContainer>
     );
-  }
-}
+  },
+  ({ expanded: a }, { expanded: b }) => a === b,
+);
+
+export const NestedText = (props) => {
+  const { value, depth, expandDepth } = props;
+  const [expanded, setExpanded] = useState(depth < expandDepth && !!getNestedSize(value));
+
+  return <NestedTextView {...props} expanded={expanded} onPress={() => setExpanded(!expanded)} />;
+};
+
+NestedText.propTypes = {
+  value: PropTypes.shape({
+    type: PropTypes.string.isRequired,
+  }).isRequired,
+  depth: PropTypes.number.isRequired,
+  expandDepth: PropTypes.number.isRequired,
+  styles: StylesPropType.isRequired,
+  wrapWithNewLines: PropTypes.bool,
+  contentFormatter: PropTypes.func,
+};
+
+NestedText.defaultProps = {
+  wrapWithNewLines: false,
+  contentFormatter: (str) => str,
+};
