@@ -1,13 +1,20 @@
-import React from 'react';
+import React, { memo } from 'react';
 import PropTypes from 'prop-types';
 import { Text } from 'react-native';
 
-export const Simple = ({ value }) => <Text>{value}</Text>;
+export const Simple = memo(
+  ({ value, contentFormatter }) => <Text>{contentFormatter(value)}</Text>,
+  () => true,
+);
 Simple.propTypes = {
   value: PropTypes.string.isRequired,
 };
 
-export const SimpleText = ({ value }) => <Text>{value} </Text>;
+export const SimpleText = memo(
+  ({ value, contentFormatter }) => <Text>{contentFormatter(value)} </Text>,
+  () => true,
+);
+
 SimpleText.propTypes = {
   value: PropTypes.string.isRequired,
 };

@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
-import { ScrollView, StyleSheet } from 'react-native';
+import { StyleSheet, FlatList } from 'react-native';
 import {
   INFO_TYPE,
   LOG_TYPE,
@@ -12,7 +12,7 @@ import {
   StylesPropType,
 } from './utils';
 
-import { Rows } from './rows';
+import { Row, createRowItemRenderer, getRowListItemKey } from './row';
 
 const styles = StyleSheet.create({
   console: {
@@ -29,7 +29,6 @@ const styles = StyleSheet.create({
 export class Console extends Component {
   static propTypes = {
     styles: StylesPropType,
-
     style: PropTypes.any,
     rows: PropTypes.arrayOf(RowPropType),
     maxRows: PropTypes.number,
@@ -39,21 +38,23 @@ export class Console extends Component {
   static defaultProps = {
     style: undefined,
     styles: {},
-    rows: [],
+    rows: undefined,
     maxRows: 50,
     expandDepth: 1,
   };
 
   constructor(props) {
     super(props);
+    
     this.state = { rows: props.rows || [] };
   }
 
-  componentWillReceiveProps(props) {
-    const { rows } = this.props;
-    if (rows !== props.rows) {
-      this.setState({ rows: props.rows || [] });
+  static getDerivedStateFromProps({ rows }, { rows: prevRows }) {
+    if (!rows || rows === prevRows) {
+      return null;
     }
+
+    return { rows: rows || [] };
   }
 
   row(content, level) {
@@ -82,6 +83,12 @@ export class Console extends Component {
 
   success = (...content) => this.row(content, SUCCESS_TYPE);
 
+  shouldComponentUpdate(nextProps, { rows: nextRows }) {
+    const { rows } = this.state;
+
+    return rows !== nextRows;
+  }
+
   render() {
     const { rows } = this.state;
     const {
@@ -90,17 +97,19 @@ export class Console extends Component {
       contentContainerStyle,
       styles: propStyles,
       expandDepth,
+      contentFormatter,
       ...props
     } = this.props;
 
     return (
-      <ScrollView
+      <FlatList
         {...props}
+        data={rows}
         style={[styles.console, style]}
         contentContainerStyle={[styles.consoleContent, contentContainerStyle]}
-      >
-        <Rows rows={rows} styles={propStyles} expandDepth={expandDepth} />
-      </ScrollView>
+        renderItem={createRowItemRenderer(propStyles, expandDepth, contentFormatter)}
+        keyExtractor={getRowListItemKey}
+      />
     );
   }
 }
