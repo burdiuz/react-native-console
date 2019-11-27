@@ -33,6 +33,7 @@ export class Console extends Component {
     rows: PropTypes.arrayOf(RowPropType),
     maxRows: PropTypes.number,
     expandDepth: PropTypes.number,
+    onListInitialized: PropTypes.func,
   };
 
   static defaultProps = {
@@ -43,12 +44,6 @@ export class Console extends Component {
     expandDepth: 1,
   };
 
-  constructor(props) {
-    super(props);
-    
-    this.state = { rows: props.rows || [] };
-  }
-
   static getDerivedStateFromProps({ rows }, { rows: prevRows }) {
     if (!rows || rows === prevRows) {
       return null;
@@ -56,6 +51,24 @@ export class Console extends Component {
 
     return { rows: rows || [] };
   }
+
+  constructor(props) {
+    super(props);
+
+    this.state = { rows: props.rows || [] };
+  }
+
+  scrollToEnd = () => this.list && this.list.scrollToEnd();
+
+  handleListRef = (ref) => {
+    const { onListInitialized } = this.props;
+
+    this.list = ref;
+    
+    if (ref && onListInitialized) {
+      onListInitialized(ref);
+    }
+  };
 
   row(content, level) {
     this.setState(({ rows }) => {
@@ -103,6 +116,7 @@ export class Console extends Component {
 
     return (
       <FlatList
+        ref={this.handleListRef}
         {...props}
         data={rows}
         style={[styles.console, style]}
